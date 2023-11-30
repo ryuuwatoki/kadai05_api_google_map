@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>何を食べろ？</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link 
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
+        crossorigin="anonymous">
+</head>
+<body>
+    
+    <div id=map_box>
+        <div id="map"></div>
+
+        <div id="map_inf">
+            <h3>何を食べろ？</h3>
+            <input type="text" id="search-input" class="form-control">
+            <button class="btn btn-primary mt-2" id="add">追加</button>
+            <h4 class="mt-4">お気に入り</h4>
+            <ul class="list-group list-group-flush list-group-numbered" id="restaurant-list">
+                <!-- <li class="list-group-item">mc</li> -->
+
+            </ul>
+
+
+        </div>
+
+
+
+
+
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+    let map;
+    let currentPosition;
+    let selectedRestaurant;
+    let marker;
+    let directionsService;
+    let directionsRenderer;
+    let infoWindow;
+
+
+    function initMap() {
+        // 初始化map到東京
+        map = new google.maps.Map(document.getElementById('map'),
+        {
+            center: {lat:35.6937632, lng:139.7036319,},
+            zoom:10,
+        });
+
+        // 取得當前位置
+        navigator.geolocation.getCurrentPosition(function (position){
+            currentPosition = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+            };
+
+            // 顯示當前位置
+            map.setCenter(currentPosition);
+            map.setZoom(16);
+
+            // 自動完成
+            const autocomplete = new google.maps.places.Autocomplete(
+                document.getElementById('search-input'),
+                {
+                    types: ['restaurant'],
+                    bounds: {
+                        // 東南西北 100公尺為範圍單位
+                        east: currentPosition.lng + 0.001,
+                        west: currentPosition.lng - 0.001,
+                        south: currentPosition.lat -0.001,
+                        north: currentPosition.lat +0.001,
+                    },
+                    strictBounds : false,
+                }
+            );
+
+            autocomplete.addListener('place_changed', function(){
+                const place = autocomplete.getPlace();
+
+                selectedRestaurant = {
+                    location: place.geometry.location,
+                    placeId: place.place_id,
+                    name: place.name,
+                    address: place.formatted_address,
+                    phoneNumber: place.formatted_phone_number,
+                    rating: place.rating,
+                }
+
+                console.log(place);
+                console.log(selectedRestaurant)
+
+                
+                map.setCenter(selectedRestaurant.location);
+
+                if (!marker) {
+                    marker = new google.maps.Marker({
+                        map: map,
+                    });
+                }
+
+                marker.setPosition(selectedRestaurant.location);
+
+                if (!directionsService) {
+                    directionsService = new google.maps.DirectionsService();
+                }
+
+                if (!directionsRenderer) {
+                    directionsRenderer = new google.maps.DirectionsRenderer({
+                        map: map,
+                    });
+                }
+
+                directionsRenderer.set('directions', null);
+
+                directionsService.route({
+                    origin: new google.maps.LatLng(
+                    currentPosition.lat,
+                    currentPosition.lng,
+                    ),
+                    destination: {
+                        placeId: selectedRestaurant.placeId,
+                    },
+                    travelMode: 'WALKING',
+                },
+                function(response, status){
+                    if (status === 'OK') {
+                        directionsRenderer.setDirections(response);
+
+                        if(!infoWindow) {
+                            infoWindow = new google.maps.InfoWindow();
+                        }
+
+                        infoWindow.setContent(
+                            `
+                            <h3>${selectedRestaurant.name}</h3>
+                            <div>住所: ${selectedRestaurant.address}</div>
+                            <div>電話番号: ${selectedRestaurant.phoneNumber}</div>
+                            <div>評価: ${selectedRestaurant.rating}</div>
+                            <div>歩く時間: ${response.routes[0].legs[0].duration.text}</div>
+                            `
+                        );
+                        infoWindow.open(map,marker);
+
+                    }
+                });
+
+            });
+
+        });
+    }
+
+
+    const restaurantList =JSON.parse(localStorage.getItem('restaurantList')) || [];
+
+
+    restaurantList.forEach(function(restaurant){
+        document.getElementById('restaurant-list').innerHTML += `
+            <li class='list-group-item'>${restaurant.name}
+                <button class='btn-close float-end remove'></button>
+                </li>
+        `;
+    });
+
+
+    document.getElementById('add').addEventListener('click',function(){
+        document.getElementById('restaurant-list').innerHTML += `
+            <li class='list-group-item'>${selectedRestaurant.name}
+                <button class='btn-close float-end remove'></button>
+                </li>
+        `;
+        document.getElementById('search-input').value = '';
+
+        const restaurantList =JSON.parse(localStorage.getItem('restaurantList')) || [];
+        restaurantList.push(selectedRestaurant);
+        localStorage.setItem('restaurantList',JSON.stringify(restaurantList));
+
+    });
+
+
+    document.getElementById('restaurant-list').addEventListener('click', function(e){
+        if (e.target.classList.contains('remove')) {
+            e.target.parentNode.remove();
+
+            const restaurantName = e.target.parentNode.innerText.trim();
+            const restaurantList =JSON.parse(localStorage.getItem('restaurantList')) || [];
+            const newRestaurantList = restaurantList.filter(function(restaurant){
+                if (restaurant.name === restaurantName) return false;
+                return true;
+            });
+            localStorage.setItem('restaurantList',JSON.stringify(newRestaurantList));
+        };
+    })
+
+
+</script>
+
+
+
+
+<!-- <script
+    async
+    src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places&callback=initMap">
+</script> -->
+
+
+
+
+
+
+
+</body>
+</html>
